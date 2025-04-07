@@ -30,7 +30,7 @@ pwd
 # In[5]:
 
 
-pip install streamlit pandas 
+# pip install streamlit pandas 
 
 # In[6]:
 
