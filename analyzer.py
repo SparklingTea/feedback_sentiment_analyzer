@@ -35,22 +35,23 @@ for dirname, _, filenames in os.walk('/kaggle/input'):
 from transformers import pipeline
 
 sentiment_pipeline = pipeline(
-    "sentiment-analysis",
-    model="cardiffnlp/twitter-roberta-base-sentiment"
+    "sentiment-analysis"
+    # model="cardiffnlp/twitter-roberta-base-sentiment"
 )
 
 def get_sentiment(text):
     result = sentiment_pipeline(text[:512])[0]
     return result['label']
 
-def decode_label(label):
-    return {
-        'LABEL_0': 'Negative',
-        'LABEL_1': 'Neutral',
-        'LABEL_2': 'Positive'
-    }[label]
+# def decode_label(label):
+#     return {
+#         'LABEL_0': 'Negative',
+#         'LABEL_1': 'Neutral',
+#         'LABEL_2': 'Positive'
+#     }[label]
 
-df['Sentiment'] = df['reviews.text'].apply(lambda x: decode_label(get_sentiment(x)))
+df['Sentiment'] = df['reviews.text'].apply(get_sentiment)
+    # lambda x: decode_label(get_sentiment(x)))
 
 
 # In[ ]:
