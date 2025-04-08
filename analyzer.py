@@ -8,7 +8,7 @@
 # It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python
 # For example, here's several helpful packages to load
 
-import numpy as np # linear algebra
+# import numpy as np # linear algebra
 import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 
 # Input data files are available in the read-only "../input/" directory
@@ -25,7 +25,7 @@ for dirname, _, filenames in os.walk('/kaggle/input'):
 # In[ ]:
 
 
-pip install pandas transformers torch
+# pip install pandas transformers torch
 
 # Import a sample of large dataset of consumer reviews for Amazon products like the Kindle, Fire TV Stick sourced from https://www.kaggle.com/datasets/datafiniti/consumer-reviews-of-amazon-products
 
