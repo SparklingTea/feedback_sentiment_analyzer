@@ -25,7 +25,7 @@ for dirname, _, filenames in os.walk('/kaggle/input'):
 # In[2]:
 
 
-pip install matplotlib seaborn plotly
+# pip install matplotlib seaborn plotly
 
 # In[3]:
 
