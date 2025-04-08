@@ -38,6 +38,7 @@ for dirname, _, filenames in os.walk('/kaggle/input'):
 import streamlit as st
 import pandas as pd
 from analyzer import get_sentiment
+from visualizer import sentiment_pie_chart, sentiment_trend_chart
 
 st.title("Sentiment Analyzer")
 
@@ -46,6 +47,18 @@ if uploaded_file:
     df = pd.read_csv(uploaded_file)
     df['Sentiment'] = df['reviews.text'].astype(str).apply(get_sentiment)
     st.dataframe(df)
+    st.subheader("📈 Sentiment Analysis Results")
+    st.dataframe(df.head())
+    
+    # Pie chart
+    st.subheader("🥧 Pie Chart of Sentiment")
+    st.pyplot(sentiment_pie_chart(df))
+    
+    # Time-based trend chart
+    if date_col != "None":
+        st.subheader("📅 Trend of Sentiment Over Time")
+        fig = sentiment_trend_chart(df, date_col)
+        st.plotly_chart(fig)
 
 # In[ ]:
 
