@@ -25,7 +25,7 @@ for dirname, _, filenames in os.walk('/kaggle/input'):
 # In[2]:
 
 
-pip install matplotlib seaborn plotly
+# pip install matplotlib seaborn plotly
 
 # In[3]:
 
@@ -148,7 +148,7 @@ def generate_wordcloud(df, sentiment_col, text_col, sentiment):
 # In[12]:
 
 
-def sentiment_trend_chart(df, date_col, sentiment_col='Sentiment'):
+def sentiment_trend_chart(df, date_col='reviews.date', sentiment_col='Sentiment'):
     if date_col not in df.columns:
         raise ValueError(f"Date column '{date_col}' not found in DataFrame.")
     

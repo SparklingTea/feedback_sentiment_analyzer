@@ -25,7 +25,7 @@ for dirname, _, filenames in os.walk('/kaggle/input'):
 # In[ ]:
 
 
-pip install pandas transformers torch
+# pip install pandas transformers torch
 
 # Import a sample of large dataset of consumer reviews for Amazon products like the Kindle, Fire TV Stick sourced from https://www.kaggle.com/datasets/datafiniti/consumer-reviews-of-amazon-products
 
