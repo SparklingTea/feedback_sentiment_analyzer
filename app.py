@@ -25,7 +25,7 @@ for dirname, _, filenames in os.walk('/kaggle/input'):
 # In[4]:
 
 
-pwd
+# pwd
 
 # In[5]:
 
