@@ -31,35 +31,47 @@ for dirname, _, filenames in os.walk('/kaggle/input'):
 
 # In[ ]:
 
+# call the API
 
-from transformers import pipeline
+import requests
+import streamlit as st
 
-sentiment_pipeline = pipeline(
-    "sentiment-analysis"
-    # model="cardiffnlp/twitter-roberta-base-sentiment"
-)
+# ✅ Load Hugging Face Token securely from Streamlit secrets
+HF_TOKEN = st.secrets["HF_TOKEN"]
 
+API_URL = "https://api-inference.huggingface.co/models/cardiffnlp/twitter-roberta-base-sentiment"
+HEADERS = {
+    "Authorization": f"Bearer {HF_TOKEN}"
+}
+
+# ✅ Decode raw Hugging Face labels to readable ones
+def decode_label(label):
+    return {
+        'LABEL_0': 'Negative',
+        'LABEL_1': 'Neutral',
+        'LABEL_2': 'Positive'
+    }.get(label, "Unknown")
+
+# ✅ Single sentence sentiment analysis
 def get_sentiment(text):
-    result = sentiment_pipeline(text[:512])[0]
-    return result['label']
+    try:
+        payload = {"inputs": text[:512]}
+        response = requests.post(API_URL, headers=HEADERS, json=payload)
+        if response.status_code == 200:
+            result = response.json()[0]
+            top = max(result, key=lambda x: x['score'])
+            return decode_label(top['label'])
+        else:
+            return "Request Failed"
+    except Exception as e:
+        return "Error"
 
-# def decode_label(label):
-#     return {
-#         'LABEL_0': 'Negative',
-#         'LABEL_1': 'Neutral',
-#         'LABEL_2': 'Positive'
-#     }[label]
+# ✅ Batch DataFrame analyzer: takes df and text column name
+def analyze_dataframe(df, text_column):
+    df = df.copy()
+    df['Sentiment'] = df[text_column].astype(str).apply(get_sentiment)
+    return df
 
-df['Sentiment'] = df['reviews.text'].apply(get_sentiment)
-    # lambda x: decode_label(get_sentiment(x)))
-
-
-# In[ ]:
-
-
-print(df['Sentiment'].value_counts())
-
-# In[ ]:
 
 
 

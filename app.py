@@ -37,17 +37,26 @@ for dirname, _, filenames in os.walk('/kaggle/input'):
 
 import streamlit as st
 import pandas as pd
-from analyzer import get_sentiment
+from analyzer import analyze_dataframe
 from visualizer import sentiment_pie_chart,sentiment_trend_chart
 
-st.title("Sentiment Analyzer")
+st.title("📊 Feedback Sentiment Analyzer")
 
-uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
+uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
-    df['Sentiment'] = df['reviews.text'].astype(str).apply(get_sentiment)
-    st.dataframe(df.head())
-    st.subheader("📈 Sentiment Analysis Results")
+    text_col = st.selectbox("Select the text column:", df.columns)
+
+    with st.spinner("Analyzing sentiment..."):
+        df = analyze_dataframe(df, text_col)
+
+    st.subheader("Sentiment Results")
+    st.dataframe(df[['Sentiment', text_col]])
+
+    st.subheader("Sentiment Distribution")
+    st.bar_chart(df['Sentiment'].value_counts())
+
+    st.download_button("Download Results", df.to_csv(index=False), "sentiment_results.csv")
 
     # Pie chart
     st.subheader("🥧 Pie Chart of Sentiment")
