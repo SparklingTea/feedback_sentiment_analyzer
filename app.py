@@ -46,6 +46,7 @@ uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
     text_col = st.selectbox("Select the text column:", df.columns)
+    date_col = st.selectbox("Select the date column (optional):", ["None"] + list(df.columns))
 
     with st.spinner("Analysing sentiment..."):
         df = analyze_dataframe(df, text_col)
