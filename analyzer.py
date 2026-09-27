@@ -39,7 +39,7 @@ import streamlit as st
 # ✅ Load Hugging Face Token securely from Streamlit secrets
 HF_TOKEN = st.secrets["HF_TOKEN"]
 
-API_URL = "https://api-inference.huggingface.co/models/cardiffnlp/twitter-roberta-base-sentiment"
+API_URL = "https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-roberta-base-sentiment"
 HEADERS = {
     "Authorization": f"Bearer {HF_TOKEN}"
 }
