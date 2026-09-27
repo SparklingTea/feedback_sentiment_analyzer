@@ -33,6 +33,7 @@ for dirname, _, filenames in os.walk('/kaggle/input'):
 
 # call the API
 
+import time
 import requests
 import streamlit as st
 
@@ -66,10 +67,35 @@ def get_sentiment(text):
     except Exception as e:
         return "Error"
 
+# ✅ Sentiment for a list of texts in one request
+def get_sentiments(texts, retries=4):
+    payload = {"inputs": [t[:512] for t in texts], "options": {"wait_for_model": True}}
+    for attempt in range(retries):
+        try:
+            response = requests.post(API_URL, headers=HEADERS, json=payload, timeout=120)
+            if response.status_code == 200:
+                labels = []
+                for result in response.json():
+                    scores = result if isinstance(result, list) else [result]
+                    labels.append(decode_label(max(scores, key=lambda x: x['score'])['label']))
+                return labels
+            if response.status_code not in (429, 503):
+                break
+        except requests.RequestException:
+            pass
+        time.sleep(2 ** attempt)
+    return ["Request Failed"] * len(texts)
+
 # ✅ Batch DataFrame analyzer: takes df and text column name
-def analyze_dataframe(df, text_column):
+def analyze_dataframe(df, text_column, batch_size=32, progress=None):
     df = df.copy()
-    df['Sentiment'] = df[text_column].astype(str).apply(get_sentiment)
+    texts = df[text_column].astype(str).tolist()
+    labels = []
+    for start in range(0, len(texts), batch_size):
+        labels.extend(get_sentiments(texts[start:start + batch_size]))
+        if progress:
+            progress(min(start + batch_size, len(texts)) / len(texts))
+    df['Sentiment'] = labels
     return df
 
 
