@@ -163,3 +163,77 @@ def sentiment_trend_chart(df, date_col='reviews.date', sentiment_col='Sentiment'
                   title='Sentiment Trends Over Time',
                   labels={'TimeGroup': 'Month', 'Count': 'Review Count'})
     return fig
+
+# In[13]:
+
+
+import re
+from collections import Counter
+from math import log
+
+STOPWORDS = set("""
+a about above after again against all am an and any are as at be because been before being below between both but by
+can could did do does doing down during each few for from further had has have having he her here hers herself him himself
+his how i if in into is it its itself just me more most my myself of off on once only or other our ours ourselves out over
+own same she should so some such than that the their theirs them themselves then there these they this those through to too
+under until up very was we were what when where which while who whom why will with would you your yours yourself yourselves
+im ive id ill it's i'm i've i'd i'll you're you've that's there's he's she's we're they're let's
+also get got getting go going one two thing things much many really even still well now since though yet etc lot lots
+make made may might must need want every ever us bit way anything something everything someone
+product products item items amazon bought buy buying purchase purchased order ordered review reviews
+""".split())
+NEGATIONS = {"no", "not", "never", "nor", "cannot", "can't", "don't", "doesn't", "didn't", "won't",
+             "isn't", "wasn't", "aren't", "weren't", "wouldn't", "couldn't", "shouldn't", "hasn't", "haven't"}
+
+
+def _review_terms(text):
+    # Stopwords are dropped before pairing, so "easy to use" becomes "easy use";
+    # negations are kept inside phrases so "doesn't work" survives.
+    terms = set()
+    for sentence in re.split(r"[.!?;\n]+", str(text).lower().replace("\u2019", "'")):
+        words = [w.strip("'") for w in re.findall(r"[a-z][a-z']*", sentence)]
+        words = [w for w in words if len(w) > 1 and w not in STOPWORDS]
+        terms.update(w for w in words if w not in NEGATIONS)
+        terms.update(f"{a} {b}" for a, b in zip(words, words[1:]) if b not in NEGATIONS)
+    return terms
+
+
+def sentiment_keywords(df, text_col, sentiment_col='Sentiment', top_n=10):
+    """Rank terms by how many reviews of a sentiment mention them, weighted by how much more
+    often they appear there than in the other sentiments."""
+    # Scraped review datasets often repeat the same review, which would flood the counts with its phrases
+    unique = df.drop_duplicates(subset=[text_col]).reset_index(drop=True)
+    doc_terms = unique[text_col].apply(_review_terms)
+    labels = unique[sentiment_col]
+    results = {}
+    for sentiment in labels.unique():
+        mask = labels == sentiment
+        n_in, n_out = mask.sum(), (~mask).sum()
+        c_in = Counter(t for terms in doc_terms[mask] for t in terms)
+        c_out = Counter(t for terms in doc_terms[~mask] for t in terms)
+        min_count = 2 if n_in >= 5 else 1
+
+        scored = []
+        for term, count in c_in.items():
+            if count < min_count:
+                continue
+            if n_out == 0:
+                score = count
+            else:
+                ratio = ((count + 0.5) / (n_in + 1)) / ((c_out[term] + 0.5) / (n_out + 1))
+                score = count * log(ratio)
+            if score > 0:
+                # Boost phrases so "battery life" outranks "battery"
+                scored.append((score * (1.5 if " " in term else 1), term, count))
+        scored.sort(reverse=True)
+
+        picked = []
+        for _, term, count in scored:
+            words = set(term.split())
+            if any(words <= set(p.split()) or set(p.split()) <= words for p, _ in picked):
+                continue
+            picked.append((term, count))
+            if len(picked) == top_n:
+                break
+        results[sentiment] = picked
+    return results

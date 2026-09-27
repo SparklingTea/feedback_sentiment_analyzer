@@ -38,7 +38,7 @@ for dirname, _, filenames in os.walk('/kaggle/input'):
 import streamlit as st
 import pandas as pd
 from analyzer import analyze_dataframe
-from visualizer import sentiment_pie_chart,sentiment_trend_chart
+from visualizer import sentiment_pie_chart,sentiment_trend_chart,sentiment_keywords
 
 st.title("📊 Feedback Sentiment Analyser")
 
@@ -54,14 +54,27 @@ if uploaded_file:
     st.subheader("Sentiment Results")
     st.dataframe(df[['Sentiment', text_col]])
 
-    st.subheader("Sentiment Distribution")
-    st.bar_chart(df['Sentiment'].value_counts())
-
     st.download_button("Download Results", df.to_csv(index=False), "sentiment_results.csv")
 
     # Pie chart
     st.subheader("🥧 Pie Chart of Sentiment")
     st.pyplot(sentiment_pie_chart(df))
+
+    # Keyword panels
+    st.subheader("🔑 What Drives Each Sentiment")
+    st.caption("Words and phrases most typical of each sentiment. The number is how many reviews mention it.")
+    keywords = sentiment_keywords(df, text_col)
+    panels = [("Positive", ":green[**😊 Positive**]"),
+              ("Neutral", ":gray[**😐 Neutral**]"),
+              ("Negative", ":red[**😞 Negative**]")]
+    for col, (sentiment, heading) in zip(st.columns(3), panels):
+        with col:
+            st.markdown(heading)
+            terms = keywords.get(sentiment, [])
+            if terms:
+                st.markdown("\n".join(f"- {term} ({count})" for term, count in terms))
+            else:
+                st.caption("Not enough reviews")
 
     # Time-based trend chart
     if date_col != "None":
