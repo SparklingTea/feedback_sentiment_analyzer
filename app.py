@@ -40,14 +40,14 @@ import pandas as pd
 from analyzer import analyze_dataframe
 from visualizer import sentiment_pie_chart,sentiment_trend_chart
 
-st.title("📊 Feedback Sentiment Analyzer")
+st.title("📊 Feedback Sentiment Analyser")
 
 uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
     text_col = st.selectbox("Select the text column:", df.columns)
 
-    with st.spinner("Analyzing sentiment..."):
+    with st.spinner("Analysing sentiment..."):
         df = analyze_dataframe(df, text_col)
 
     st.subheader("Sentiment Results")
