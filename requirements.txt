@@ -7,3 +7,4 @@ torch
 plotly
 wordcloud
 requests
+anthropic
