@@ -34,6 +34,7 @@ for dirname, _, filenames in os.walk('/kaggle/input'):
 # call the API
 
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 import streamlit as st
 
@@ -67,34 +68,35 @@ def get_sentiment(text):
     except Exception as e:
         return "Error"
 
-# ✅ Sentiment for a list of texts in one request
-def get_sentiments(texts, retries=4):
-    payload = {"inputs": [t[:512] for t in texts], "options": {"wait_for_model": True}}
+# ✅ Single text with retries for rate limits / model loading
+def get_sentiment_with_retry(text, retries=4):
     for attempt in range(retries):
         try:
-            response = requests.post(API_URL, headers=HEADERS, json=payload, timeout=120)
+            response = requests.post(API_URL, headers=HEADERS, json={"inputs": text[:512]}, timeout=60)
             if response.status_code == 200:
-                labels = []
-                for result in response.json():
-                    scores = result if isinstance(result, list) else [result]
-                    labels.append(decode_label(max(scores, key=lambda x: x['score'])['label']))
-                return labels
+                scores = response.json()
+                # The API returns either [{...}, ...] or [[{...}, ...]] depending on the backend
+                if scores and isinstance(scores[0], list):
+                    scores = scores[0]
+                return decode_label(max(scores, key=lambda x: x['score'])['label'])
             if response.status_code not in (429, 503):
-                break
-        except requests.RequestException:
+                return "Request Failed"
+        except (requests.RequestException, ValueError, KeyError, IndexError):
             pass
         time.sleep(2 ** attempt)
-    return ["Request Failed"] * len(texts)
+    return "Request Failed"
 
-# ✅ Batch DataFrame analyzer: takes df and text column name
-def analyze_dataframe(df, text_column, batch_size=32, progress=None):
+# ✅ DataFrame analyzer: the API takes one text per request, so send several in parallel
+def analyze_dataframe(df, text_column, workers=8, progress=None):
     df = df.copy()
     texts = df[text_column].astype(str).tolist()
-    labels = []
-    for start in range(0, len(texts), batch_size):
-        labels.extend(get_sentiments(texts[start:start + batch_size]))
-        if progress:
-            progress(min(start + batch_size, len(texts)) / len(texts))
+    labels = [None] * len(texts)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(get_sentiment_with_retry, t): i for i, t in enumerate(texts)}
+        for done, future in enumerate(as_completed(futures), 1):
+            labels[futures[future]] = future.result()
+            if progress and (done % 10 == 0 or done == len(texts)):
+                progress(done / len(texts))
     df['Sentiment'] = labels
     return df
 
