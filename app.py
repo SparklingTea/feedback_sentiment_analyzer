@@ -41,8 +41,14 @@ from analyzer import analyze_dataframe
 from visualizer import sentiment_pie_chart,sentiment_trend_chart,sentiment_keywords
 from scraper_agent import run_scraper_agent
 from cleaner_agent import clean_reviews
+from insights import sentiment_themes
 
 st.title("📊 Feedback Sentiment Analyser")
+
+
+@st.cache_data(show_spinner="Finding what drives each sentiment...")
+def find_themes(df, text_col):
+    return sentiment_themes(df[[text_col, "Sentiment"]], text_col)
 
 
 @st.cache_data(show_spinner=False)
@@ -107,21 +113,43 @@ if df is not None:
     st.subheader("🥧 Pie Chart of Sentiment")
     st.pyplot(sentiment_pie_chart(df))
 
-    # Keyword panels
+    # Theme panels
     st.subheader("🔑 What Drives Each Sentiment")
-    st.caption("Words and phrases most typical of each sentiment. The number is how many reviews mention it.")
-    keywords = sentiment_keywords(df, text_col)
     panels = [("Positive", ":green[**😊 Positive**]"),
               ("Neutral", ":gray[**😐 Neutral**]"),
               ("Negative", ":red[**😞 Negative**]")]
-    for col, (sentiment, heading) in zip(st.columns(3), panels):
-        with col:
-            st.markdown(heading)
-            terms = keywords.get(sentiment, [])
-            if terms:
-                st.markdown("\n".join(f"- {term} ({count})" for term, count in terms))
-            else:
-                st.caption("Not enough reviews")
+    try:
+        themes = find_themes(df, text_col)
+    except Exception as e:
+        themes = None
+        st.caption(f"AI themes unavailable ({e}), showing the most typical words instead. "
+                   "The number is how many reviews mention each word.")
+
+    if themes is not None:
+        st.caption("Themes found by AI in each group. ⚙️ product feature · 💭 feeling or experience. "
+                   "Each quote is a real review from that group.")
+        for col, (sentiment, heading) in zip(st.columns(3), panels):
+            with col:
+                st.markdown(heading)
+                group = themes[sentiment]
+                if not group["themes"]:
+                    st.caption("No clear themes" if group["n"] else "No reviews")
+                for t in group["themes"]:
+                    icon = {"feature": "⚙️", "emotion": "💭"}.get(t["kind"], "•")
+                    st.markdown(f"{icon} **{t['theme']}**  \n:gray[{t['count']} review{'s' if t['count'] != 1 else ''} · {t['share']:.0%}]")
+                    st.caption(f"“{t['quote']}”")
+                if group["sampled"]:
+                    st.caption(f"Based on a random sample of {group['n']} reviews.")
+    else:
+        keywords = sentiment_keywords(df, text_col)
+        for col, (sentiment, heading) in zip(st.columns(3), panels):
+            with col:
+                st.markdown(heading)
+                terms = keywords.get(sentiment, [])
+                if terms:
+                    st.markdown("\n".join(f"- {term} ({count})" for term, count in terms))
+                else:
+                    st.caption("Not enough reviews")
 
     # Time-based trend chart
     if date_col != "None":
