@@ -66,6 +66,7 @@ if source == "Upload a CSV":
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
     if uploaded_file:
         df = pd.read_csv(uploaded_file)
+        data_id = f"upload:{uploaded_file.name}:{uploaded_file.size}"
         text_col = st.selectbox("Select the text column:", df.columns)
         date_col = st.selectbox("Select the date column (optional):", ["None"] + list(df.columns))
 else:
@@ -85,6 +86,7 @@ else:
                 st.write(summary)
                 status.update(label="Cleaning data...")
                 st.session_state["scraped"] = clean_reviews(raw, log=st.write)
+                st.session_state["scrape_id"] = st.session_state.get("scrape_id", 0) + 1
                 status.update(label="Feedback collected", state="complete", expanded=False)
             except Exception as e:
                 status.update(label="Collection failed", state="error")
@@ -99,6 +101,16 @@ else:
             st.write(df["platform"].value_counts().rename("rows"))
             st.download_button("Download cleaned data", df.to_csv(index=False).encode("utf-8-sig"), "cleaned_feedback.csv")
             text_col, date_col = "text", ("date" if df["date"].notna().any() else "None")
+            data_id = f"scrape:{st.session_state.get('scrape_id', 0)}"
+
+if df is not None:
+    # Results stay until the data or the chosen columns change; then the button is needed again
+    selection = (data_id, text_col, date_col)
+    if st.button("Analyse sentiment", type="primary"):
+        st.session_state["analysed"] = selection
+    if st.session_state.get("analysed") != selection:
+        st.caption(f"{len(df)} rows ready. Check the data above, then press **Analyse sentiment**.")
+        df = None
 
 if df is not None:
     df = run_sentiment(df, text_col)
