@@ -1,6 +1,4 @@
-import re
 import time
-from urllib.parse import urlparse
 
 import anthropic
 import pandas as pd
@@ -12,14 +10,14 @@ FALLBACK_BETA = "server-side-fallback-2026-07-01"
 APIFY_BASE = "https://api.apify.com/v2"
 
 ACTORS = {
-    "amazon": "web_wanderer~amazon-reviews-extractor",
+    "amazon": "junglee~amazon-reviews-scraper",
     "ebay": "web_wanderer~ebay-reviews-scraper",
     "tiktok_search": "clockworks~tiktok-scraper",
     "tiktok_comments": "clockworks~tiktok-comments-scraper",
 }
 
 SEARCH_DOMAINS = {
-    "Amazon": ["amazon.co.uk", "amazon.in", "amazon.com", "amazon.ca", "amazon.com.au"],
+    "Amazon": ["amazon.com", "amazon.co.uk", "amazon.ca", "amazon.de", "amazon.com.au", "amazon.in"],
     "eBay": ["ebay.com", "ebay.co.uk", "ebay.ca", "ebay.de", "ebay.com.au"],
 }
 
@@ -32,9 +30,7 @@ For each selected platform:
   ones with many reviews. Then call the platform's scrape tool once with 1-3 listing URLs.
   Amazon only returns the newest ~100 reviews per listing, so if the user asked for more than 100 per platform,
   include up to 3 separate listings of the same product (not similar products).
-  amazon.com (US) hides written reviews from scrapers, so search amazon.co.uk first, then amazon.in; US links
-  are automatically looked up on amazon.co.uk by product code. If Amazon returns 0 rows, search amazon.co.uk
-  or amazon.in for the product's listing there and try once more.
+  Use listing URLs exactly as found; product codes differ between Amazon stores, so never swap a URL's domain.
 - TikTok: if no video links were given, call find_tiktok_videos with a short product search term, choose
   the videos that are actually about the product (reviews, unboxings, comparisons) with the most comments,
   then call scrape_tiktok_comments once with those video URLs.
@@ -86,7 +82,7 @@ def _tool_defs(platforms):
                       "max_uses": 6, "allowed_domains": search_domains})
     if "Amazon" in platforms:
         tools.append({"name": "scrape_amazon_reviews",
-                      "description": "Scrape customer reviews from Amazon product pages (/dp/ URLs). amazon.com links are read from amazon.co.uk.",
+                      "description": "Scrape customer reviews from Amazon product pages (/dp/ URLs).",
                       "input_schema": {"type": "object", "properties": {"product_urls": urls},
                                        "required": ["product_urls"], "additionalProperties": False}})
     if "eBay" in platforms:
@@ -124,23 +120,13 @@ def run_scraper_agent(request, platforms, max_reviews, max_charge_usd=5.0, log=p
     def execute(name, args):
         if name == "scrape_amazon_reviews":
             urls = args["product_urls"]
-            domain = urlparse(urls[0]).netloc.removeprefix("www.")
-            if domain in ("amazon.com", "smile.amazon.com") or not domain.startswith("amazon."):
-                # US written reviews are only shown to signed-in users; the same ASIN on the UK store usually has them
-                asins = [m.group(1) for u in urls if (m := re.search(r"/(?:dp|gp/product|product-reviews)/([A-Z0-9]{10})", u))]
-                urls, domain = asins or urls, "amazon.co.uk"
-            per_url = -(-max_reviews // len(urls))
-            # Newest-first across all stars keeps the real rating mix. Amazon stops at 10 pages (100 reviews)
-            # per listing; splitting by star would get more but over-represent low ratings.
+            # Newest-first across all stars keeps the real rating mix. Amazon stops at 100 reviews per listing
+            # and filter; splitting by star would get more but over-represent low ratings.
             items = _run_actor(ACTORS["amazon"], {
-                "products": urls, "sort": "recent", "all_stars": False, "include_variants": True,
-                "limit": min(10, -(-per_url // 10)),
-                "region": domain}, max_charge_usd)
-            items = [i for i in items if i.get("reviewText") or i.get("reviewTitle")]
-            result = store("Amazon", items[:max_reviews])
-            if not items:
-                result += f" (looked on {domain}; the product may not be listed there under the same code)"
-            return result
+                "productUrls": [{"url": u} for u in urls], "sort": "recent", "filterByRatings": ["allStars"],
+                "maxReviews": min(100, -(-max_reviews // len(urls)))}, max_charge_usd)
+            items = [i for i in items if i.get("reviewDescription") or i.get("reviewTitle")]
+            return store("Amazon", items[:max_reviews])
         if name == "scrape_ebay_reviews":
             items = _run_actor(ACTORS["ebay"], {
                 "product_urls": args["product_urls"], "reviews_limit": max_reviews, "sort": "TIME"}, max_charge_usd)
