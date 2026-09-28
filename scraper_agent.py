@@ -29,6 +29,8 @@ For each selected platform:
 - Amazon / eBay: if no product link was given, use web search to find the product's own listing page
   (an Amazon /dp/ page, an eBay /itm/ page). Pick the listing that best matches the product, preferring
   ones with many reviews. Then call the platform's scrape tool once with 1-3 listing URLs.
+  Amazon only returns the newest ~100 reviews per listing, so if the user asked for more than 100 per platform,
+  include up to 3 separate listings of the same product (not similar products).
 - TikTok: if no video links were given, call find_tiktok_videos with a short product search term, choose
   the videos that are actually about the product (reviews, unboxings, comparisons) with the most comments,
   then call scrape_tiktok_comments once with those video URLs.
@@ -120,16 +122,16 @@ def run_scraper_agent(request, platforms, max_reviews, max_charge_usd=5.0, log=p
             urls = args["product_urls"]
             domain = urlparse(urls[0]).netloc.removeprefix("www.")
             per_url = -(-max_reviews // len(urls))
-            # Amazon lists at most 10 pages (100 reviews) per filter; fetching each star separately lifts that to 500
-            per_star = per_url > 100
+            # Newest-first across all stars keeps the real rating mix. Amazon stops at 10 pages (100 reviews)
+            # per listing; splitting by star would get more but over-represent low ratings.
             items = _run_actor(ACTORS["amazon"], {
-                "products": urls, "sort": "recent", "all_stars": per_star,
-                "limit": min(10, -(-per_url // (50 if per_star else 10))),
+                "products": urls, "sort": "recent", "all_stars": False, "include_variants": True,
+                "limit": min(10, -(-per_url // 10)),
                 "region": domain if domain.startswith("amazon.") else "amazon.com"}, max_charge_usd)
             return store("Amazon", items[:max_reviews])
         if name == "scrape_ebay_reviews":
             items = _run_actor(ACTORS["ebay"], {
-                "product_urls": args["product_urls"], "reviews_limit": max_reviews}, max_charge_usd)
+                "product_urls": args["product_urls"], "reviews_limit": max_reviews, "sort": "TIME"}, max_charge_usd)
             return store("eBay", items)
         if name == "find_tiktok_videos":
             items = _run_actor(ACTORS["tiktok_search"], {
