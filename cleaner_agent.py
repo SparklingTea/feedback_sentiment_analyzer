@@ -1,7 +1,9 @@
 import json
+import re
 
 import anthropic
 import pandas as pd
+from py3langid.langid import MODEL_FILE, LanguageIdentifier
 
 from scraper_agent import FALLBACK_BETA, MODEL, _secret
 
@@ -87,6 +89,31 @@ def apply_mapping(df, mapping, platform):
     return out[out["text"].fillna("").str.len() > 0]
 
 
+# Candidate languages are limited to Latin-script ones: with all ~100 languages, short English
+# comments like "good" or "ok" get labelled Somali or Afrikaans. Other scripts are caught by the script check.
+LATIN_LANGUAGES = ["en", "es", "de", "fr", "it", "pt", "nl", "tr", "pl", "sv", "id", "ro",
+                   "da", "no", "fi", "cs", "hu", "vi", "tl", "ms"]
+_lang_id = None
+
+
+def is_non_english(text):
+    global _lang_id
+    text = re.sub(r"https?://\S+|[@#]\w+", " ", str(text))
+    letters = [c for c in text if c.isalpha()]
+    if not letters:
+        return False  # emoji-only comments still carry sentiment
+    latin = sum(1 for c in letters if c.isascii() or "\u00c0" <= c <= "\u024f")
+    if latin / len(letters) < 0.7:
+        return True
+    if _lang_id is None:
+        _lang_id = LanguageIdentifier.from_model_file(MODEL_FILE, norm_probs=True)
+        _lang_id.set_languages(LATIN_LANGUAGES)
+    scores = dict(_lang_id.rank(text))
+    top = max(scores, key=scores.get)
+    # Only drop when clearly another language, so short English comments survive
+    return top != "en" and scores[top] >= 0.5 and scores["en"] < 0.2
+
+
 def clean_reviews(raw, log=print):
     """raw: {platform: DataFrame}. Returns one table with columns platform, text, date, rating."""
     client = anthropic.Anthropic(api_key=_secret("ANTHROPIC_API_KEY"))
@@ -103,6 +130,11 @@ def clean_reviews(raw, log=print):
 
     cleaned = pd.concat(frames, ignore_index=True)
     before = len(cleaned)
-    cleaned = cleaned.drop_duplicates(subset=["platform", "text"]).reset_index(drop=True)
-    log(f"Kept {len(cleaned)} rows ({before - len(cleaned)} exact duplicates removed)")
+    cleaned = cleaned.drop_duplicates(subset=["platform", "text"])
+    duplicates = before - len(cleaned)
+    foreign = cleaned["text"].apply(is_non_english)
+    for platform, n in cleaned[foreign]["platform"].value_counts().items():
+        log(f"{platform}: removed {n} non-English rows")
+    cleaned = cleaned[~foreign].reset_index(drop=True)
+    log(f"Kept {len(cleaned)} rows ({duplicates} exact duplicates and {int(foreign.sum())} non-English rows removed)")
     return cleaned

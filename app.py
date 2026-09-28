@@ -91,7 +91,7 @@ else:
             df = None
         else:
             st.write(df["platform"].value_counts().rename("rows"))
-            st.download_button("Download cleaned data", df.to_csv(index=False), "cleaned_feedback.csv")
+            st.download_button("Download cleaned data", df.to_csv(index=False).encode("utf-8-sig"), "cleaned_feedback.csv")
             text_col, date_col = "text", ("date" if df["date"].notna().any() else "None")
 
 if df is not None:
@@ -101,7 +101,7 @@ if df is not None:
     extra = [c for c in ("platform", "rating") if c in df.columns and c != text_col]
     st.dataframe(df[['Sentiment', text_col] + extra])
 
-    st.download_button("Download Results", df.to_csv(index=False), "sentiment_results.csv")
+    st.download_button("Download Results", df.to_csv(index=False).encode("utf-8-sig"), "sentiment_results.csv")
 
     # Pie chart
     st.subheader("🥧 Pie Chart of Sentiment")

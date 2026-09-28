@@ -8,3 +8,4 @@ plotly
 wordcloud
 requests
 anthropic
+py3langid
