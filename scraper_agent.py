@@ -1,4 +1,5 @@
 import time
+from urllib.parse import urlparse
 
 import anthropic
 import pandas as pd
@@ -10,7 +11,7 @@ FALLBACK_BETA = "server-side-fallback-2026-07-01"
 APIFY_BASE = "https://api.apify.com/v2"
 
 ACTORS = {
-    "amazon": "junglee~amazon-reviews-scraper",
+    "amazon": "web_wanderer~amazon-reviews-extractor",
     "ebay": "web_wanderer~ebay-reviews-scraper",
     "tiktok_search": "clockworks~tiktok-scraper",
     "tiktok_comments": "clockworks~tiktok-comments-scraper",
@@ -116,10 +117,16 @@ def run_scraper_agent(request, platforms, max_reviews, max_charge_usd=5.0, log=p
 
     def execute(name, args):
         if name == "scrape_amazon_reviews":
+            urls = args["product_urls"]
+            domain = urlparse(urls[0]).netloc.removeprefix("www.")
+            per_url = -(-max_reviews // len(urls))
+            # Amazon lists at most 10 pages (100 reviews) per filter; fetching each star separately lifts that to 500
+            per_star = per_url > 100
             items = _run_actor(ACTORS["amazon"], {
-                "productUrls": [{"url": u} for u in args["product_urls"]],
-                "maxReviews": max_reviews, "sort": "recent"}, max_charge_usd)
-            return store("Amazon", items)
+                "products": urls, "sort": "recent", "all_stars": per_star,
+                "limit": min(10, -(-per_url // (50 if per_star else 10))),
+                "region": domain if domain.startswith("amazon.") else "amazon.com"}, max_charge_usd)
+            return store("Amazon", items[:max_reviews])
         if name == "scrape_ebay_reviews":
             items = _run_actor(ACTORS["ebay"], {
                 "product_urls": args["product_urls"], "reviews_limit": max_reviews}, max_charge_usd)
