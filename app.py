@@ -54,9 +54,10 @@ def find_themes(df, text_col):
 @st.cache_data(show_spinner=False)
 def run_sentiment(df, text_col):
     bar = st.progress(0.0, text="Analysing sentiment...")
-    result = analyze_dataframe(df, text_col, progress=lambda f: bar.progress(f, text="Analysing sentiment..."))
-    bar.empty()
-    return result
+    try:
+        return analyze_dataframe(df, text_col, progress=lambda f: bar.progress(f, text="Analysing sentiment..."))
+    finally:
+        bar.empty()
 
 
 source = st.radio("Feedback source", ["Upload a CSV", "Scrape online reviews"], horizontal=True)
@@ -113,7 +114,12 @@ if df is not None:
         df = None
 
 if df is not None:
-    df = run_sentiment(df, text_col)
+    try:
+        df = run_sentiment(df, text_col)
+    except RuntimeError as e:
+        # Shown explicitly because Streamlit Cloud hides uncaught error messages
+        st.error(f"{e}\n\nFix the issue above, then press **Analyse sentiment** again.")
+        st.stop()
 
     st.subheader("Sentiment Results")
     extra = [c for c in ("platform", "rating") if c in df.columns and c != text_col]
